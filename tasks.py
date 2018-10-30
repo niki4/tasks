@@ -5,12 +5,45 @@ import logging
 import sys
 import time
 
+from jsonschema import validate, ValidationError, SchemaError
+
+
 logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
 log = logging.getLogger(__name__)
 
 
 class BaseTask(object):
     name = str()
+
+
+def parse_user_params(params: str) -> dict:
+    """ convert json-like params structure decoding it to python dict """
+
+    if not isinstance(params, str):
+        log.error("Incorrect function param. Must be a string.")
+        return dict()
+
+    try:
+        args_dict = json.loads(params.replace("'", '"'))
+        log.info(type(args_dict), args_dict.__repr__())
+    except json.decoder.JSONDecodeError as e:
+        log.exception("Incorrect input data structure. Check your params!", e)
+        log.info("I will try to run function with its default args, if any")
+    else:
+        return args_dict
+
+
+def validate_schema(user_params: dict, schema: str):
+    """ validates params data values with supplied json-schema """
+    try:
+        validate(user_params, schema)
+    except ValidationError as e:
+        log.error("Incorrect input data values.",
+                  "\nValid schema:", schema, "\nError:", e)
+        raise e
+    except SchemaError as e:
+        log.error("Incorrect validation schema", e)
+        raise e
 
 
 def run_cli():
@@ -53,7 +86,7 @@ def run_cli():
                     log.exception("Class " + cls_name + " has no run() method! Skipping.\n Error details:", e)
                 else:
                     cls_instance = cls_obj()
-                    cls_callables[cls_obj.name] = cls_instance.run
+                    cls_callables[cls_obj.name] = cls_instance.run, cls_instance
                     cls_parser = subparser.add_parser(cls_obj.name)
                     cls_parser.add_argument("-p", "--params", dest="params")
 
@@ -61,31 +94,49 @@ def run_cli():
     print("args.command", args.command, type(args.command))
 
     # if desired command is a function - return it, otherwise look in class methods
-    func_to_run = getattr(sys.modules["__main__"], func_callables.get(args.command), None) if (
+    func_to_run, cls_inst = (getattr(sys.modules["__main__"], func_callables.get(args.command), None), ) if (
             args.command in func_callables) else cls_callables.get(args.command)
     if not func_to_run:
         log.error("No any callable found with specified 'name'. Exiting...")
         return None
 
-    print("args", args)
-    print("args.params", args.params)
+    print("args:", args)
+    print("args.params:", args.params)
 
-    args_dict = dict()
-    if args.params:
-        try:
-            args_dict = json.loads(args.params.replace("'", '"'))
-            log.info(type(args_dict), args_dict.__repr__())
-        except json.decoder.JSONDecodeError as e:
-            log.exception("Incorrect input data. Check your params!\nError Details:", e)
-            log.info("I will try to run function with its default args, if any")
-    return func_to_run(**args_dict)
+    # args_dict = dict()
+    user_params = parse_user_params(args.params)
+    if user_params and cls_inst:
+            log.info("cls_inst.json_schema", cls_inst.json_schema)
+            validate_schema(user_params, cls_inst.json_schema)
+
+    # if args.params:
+    #     # validate json-like params structure with decoding it to python dict
+    #     try:
+    #         args_dict = json.loads(args.params.replace("'", '"'))
+    #         log.info(type(args_dict), args_dict.__repr__())
+    #     except json.decoder.JSONDecodeError as e:
+    #         log.exception("Incorrect input data structure. Check your params!\nError:", e)
+    #         log.info("I will try to run function with its default args, if any")
+    #
+    #     # validate params data values with supplied json-schema
+    #     try:
+    #         schema = getattr(func_to_run, "json_schema")
+    #         validate(args_dict, schema)
+    #     except AttributeError as e:
+    #         log.exception("No attribute 'json_schema' in specified function.", e)
+    #     except ValidationError as e:
+    #         log.error("Incorrect input data values.", "\nValid schema:",
+    #                   func_to_run.schema, "\nError:", e)
+
+    return func_to_run(**user_params)
 
 
 # task - wraps decorated function allowing it running from CLI
-def task(name):
+def task(name, json_schema):
     def decorator(func):
         def wrapper(*args, **kwargs):
             print(name, "-" * 5)
+            print(json_schema)
             return func(*args, **kwargs)
         return wrapper
     return decorator
@@ -107,3 +158,9 @@ def delayed(attempts, delay_before_retry_sec):
                     continue
         return wrapper
     return internal
+
+def get_attrs(obj):
+    attrs = set(obj.__dict__)
+    for cls in obj.__class__.__mro__:
+        attrs.update(cls.__dict__)
+    return sorted(attrs)
