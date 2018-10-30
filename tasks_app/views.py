@@ -1,5 +1,10 @@
-from django.shortcuts import render
-from django.http import HttpResponse
+from rest_framework import viewsets
 
-def index(request):
-    return HttpResponse("Use POST request to set new task")
+from tasks_app.models import Task
+from tasks_app.serializers import TaskSerializer
+
+
+class TaskViewSet(viewsets.ModelViewSet):
+    """ Handles creating CRUD instance set for Task """
+    queryset = Task.objects.all()
+    serializer_class = TaskSerializer
