@@ -1,3 +1,5 @@
+#!/usr/bin/env python
+
 from functools import reduce
 
 import tasks
@@ -29,5 +31,4 @@ class Multiply(tasks.BaseTask):
 
 
 if __name__ == '__main__':
-    # print(multi_print("nya", count=5))
-    print("Result:", tasks.run_cli())
+    print(tasks.run_cli())
