@@ -26,18 +26,39 @@ Built using Django and django-rest-framework.
 
 To set solution up, run following commands (Linux):
 
+* Clone project
+```shell
+git clone https://github.com/niki4/tasks.git
+```
+
+Create and activate virtual environment in project directory
+```shell
+python3 -m venv ./venv
+source venv/bin/activate
+```
+
+Install project requirements
+```shell
+pip install --upgrade pip
+pip install -r requirements.txt
+```
+
+Set DJANGO_SECRET_KEY
 ```shell
 export DJANGO_SECRET_KEY='blah'
 ```
 
+Create DB and init tables
 ```shell
 python3 manage.py migrate
 ```
 
+In order to run CLI from Django process, we need to make sure target module with functions is executable
 ```shell
 chmod +x example_tasks.py
 ```
 
+Finally, run API server
 ```shell
 python3 manage.py runserver
 ```
